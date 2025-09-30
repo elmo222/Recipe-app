@@ -41,6 +41,11 @@ class RecipeParser {
             recipe.sourceUrl = url;
             recipe.extractedAt = new Date().toISOString();
 
+            // Download and convert images to base64
+            if (recipe.images && recipe.images.length > 0) {
+                recipe.images = await this.downloadImages(recipe.images);
+            }
+
             return recipe;
 
         } catch (error) {
@@ -387,6 +392,172 @@ class RecipeParser {
             }
         }
         return [];
+    }
+
+    /**
+     * Download images and convert to base64 data URLs
+     */
+    async downloadImages(imageUrls) {
+        const downloadedImages = [];
+        const maxImages = 5; // Limit to prevent excessive downloads
+        
+        for (let i = 0; i < Math.min(imageUrls.length, maxImages); i++) {
+            const imageUrl = imageUrls[i];
+            try {
+                const dataUrl = await this.downloadImage(imageUrl);
+                if (dataUrl) {
+                    downloadedImages.push(dataUrl);
+                }
+            } catch (error) {
+                console.warn(`Failed to download image ${imageUrl}:`, error);
+                // Continue with other images
+            }
+        }
+        
+        return downloadedImages;
+    }
+
+    /**
+     * Download a single image and convert to base64 data URL
+     */
+    async downloadImage(imageUrl) {
+        // Make URL absolute if it's relative
+        const absoluteUrl = this.makeAbsoluteUrl(imageUrl);
+        
+        // Try different methods to download the image
+        const methods = [
+            () => this.downloadImageViaProxy(absoluteUrl),
+            () => this.downloadImageDirect(absoluteUrl),
+            () => this.downloadImageViaCanvas(absoluteUrl)
+        ];
+        
+        for (const method of methods) {
+            try {
+                const result = await method();
+                if (result) {
+                    return result;
+                }
+            } catch (error) {
+                console.warn('Image download method failed:', error);
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Download image using CORS proxy
+     */
+    async downloadImageViaProxy(imageUrl) {
+        const proxies = [this.corsProxy, this.fallbackProxy];
+        
+        for (const proxy of proxies) {
+            try {
+                const response = await fetch(proxy + encodeURIComponent(imageUrl));
+                if (response.ok) {
+                    const blob = await response.blob();
+                    return await this.blobToDataUrl(blob);
+                }
+            } catch (error) {
+                console.warn(`Proxy ${proxy} failed for image:`, error);
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Download image directly (for CORS-enabled images)
+     */
+    async downloadImageDirect(imageUrl) {
+        try {
+            const response = await fetch(imageUrl);
+            if (response.ok) {
+                const blob = await response.blob();
+                return await this.blobToDataUrl(blob);
+            }
+        } catch (error) {
+            console.warn('Direct image fetch failed:', error);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Download image using canvas (for same-origin images)
+     */
+    async downloadImageViaCanvas(imageUrl) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    resolve(dataUrl);
+                } catch (error) {
+                    console.warn('Canvas conversion failed:', error);
+                    resolve(null);
+                }
+            };
+            
+            img.onerror = () => {
+                resolve(null);
+            };
+            
+            img.src = imageUrl;
+            
+            // Timeout after 10 seconds
+            setTimeout(() => resolve(null), 10000);
+        });
+    }
+
+    /**
+     * Convert blob to data URL
+     */
+    async blobToDataUrl(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    /**
+     * Make URL absolute if it's relative
+     */
+    makeAbsoluteUrl(url, baseUrl = null) {
+        if (!url) return url;
+        
+        // Already absolute
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+        }
+        
+        // Protocol-relative
+        if (url.startsWith('//')) {
+            return 'https:' + url;
+        }
+        
+        // If we have a base URL, use it
+        if (baseUrl) {
+            try {
+                return new URL(url, baseUrl).href;
+            } catch (error) {
+                console.warn('Failed to make absolute URL:', error);
+            }
+        }
+        
+        return url;
     }
 
     /**

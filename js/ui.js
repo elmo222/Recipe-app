@@ -273,8 +273,8 @@ class RecipeUI {
                </div>`
             : '';
 
-        const ingredientsList = recipe.ingredients.split('\n').filter(ing => ing.trim()).map(ing => 
-            `<li>${this.escapeHtml(ing.trim())}</li>`
+        const ingredientsList = recipe.ingredients.split('\n').filter(ing => ing.trim()).map(ing =>
+            `<li>${this.formatIngredientWithBoldQuantities(ing.trim())}</li>`
         ).join('');
 
         const instructionsList = recipe.instructions.split('\n').filter(inst => inst.trim()).map(inst => 
@@ -371,13 +371,18 @@ class RecipeUI {
         }
 
         extractBtn.disabled = true;
-        this.showStatus(statusDiv, 'Extracting recipe...', 'loading');
+        this.showStatus(statusDiv, 'Extracting recipe and downloading images...', 'loading');
 
         try {
             const recipe = await window.recipeParser.extractRecipe(url);
             this.populateRecipeForm(recipe);
             this.showManualEntryForm();
-            this.showStatus(statusDiv, 'Recipe extracted successfully!', 'success');
+            
+            const imageCount = recipe.images ? recipe.images.length : 0;
+            const successMessage = imageCount > 0
+                ? `Recipe extracted successfully with ${imageCount} image${imageCount > 1 ? 's' : ''}!`
+                : 'Recipe extracted successfully!';
+            this.showStatus(statusDiv, successMessage, 'success');
         } catch (error) {
             console.error('Recipe extraction failed:', error);
             this.showStatus(statusDiv, `Failed to extract recipe: ${error.message}`, 'error');
@@ -403,7 +408,9 @@ class RecipeUI {
             // Save images
             if (this.currentImages.length > 0) {
                 for (const imageData of this.currentImages) {
-                    await window.recipeStorage.saveImage(recipeId, imageData.file, imageData.data);
+                    // Handle both uploaded files and downloaded images from URLs
+                    const file = imageData.file || null;
+                    await window.recipeStorage.saveImage(recipeId, file, imageData.data);
                 }
             }
 
@@ -533,6 +540,16 @@ class RecipeUI {
         
         if (recipe.sourceUrl) {
             document.getElementById('recipe-url').value = recipe.sourceUrl;
+        }
+
+        // Handle downloaded images from recipe parser
+        if (recipe.images && recipe.images.length > 0) {
+            this.currentImages = recipe.images.map((imageData, index) => ({
+                file: null, // No file object for downloaded images
+                data: imageData,
+                fromUrl: true // Flag to indicate this came from URL extraction
+            }));
+            this.updateImagePreview();
         }
     }
 
@@ -763,6 +780,23 @@ class RecipeUI {
 
     showSuccess(message) {
         alert(message);
+    }
+
+    /**
+     * Format ingredient text with bold quantities
+     */
+    formatIngredientWithBoldQuantities(ingredient) {
+        // Escape HTML first
+        let formatted = this.escapeHtml(ingredient);
+        
+        // Single comprehensive regex to match all quantity patterns
+        // This approach prevents overlapping matches and double-bolding
+        const quantityPattern = /(\b\d+\s+\d+\/\d+\b|\b\d+\/\d+\b|[½¼¾⅓⅔⅛⅜⅝⅞⅐⅑⅒⅕⅖⅗⅘⅙⅚]|\b\d*\.?\d+\s*(?:cups?|tbsp|tablespoons?|tsp|teaspoons?|oz|ounces?|lbs?|pounds?|kg|kilograms?|g|grams?|ml|milliliters?|l|liters?|pints?|quarts?|gallons?|cloves?|pieces?|slices?|cans?|bottles?|packages?|bunches?|heads?|stalks?)\b|\b\d+(?=\s+[a-zA-Z]))/gi;
+        
+        // Replace all quantity matches with bold formatting
+        formatted = formatted.replace(quantityPattern, '<strong>$1</strong>');
+        
+        return formatted;
     }
 
     /**
