@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Recipe Manager</title>
+    <meta name="description" content="Simple, clean recipe manager with URL import and tagging">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Vibe Recipes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-128x128.png">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="container">
+                <h1 class="app-title">
+                    <span class="logo">🍽️</span>
+                    Vibe Recipes
+                </h1>
+                <nav class="app-nav">
+                    <button id="add-recipe-btn" class="btn btn-primary">
+                        <span class="icon">+</span>
+                        Add Recipe
+                    </button>
+                    <button id="search-toggle" class="btn btn-secondary">
+                        <span class="icon">🔍</span>
+                        Search
+                    </button>
+                    <button id="share-menu-btn" class="btn btn-outline">
+                        <span class="icon">📤</span>
+                        Share
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Search Bar -->
+        <div id="search-container" class="search-container hidden">
+            <div class="container">
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Search recipes, ingredients, or tags...">
+                    <div class="search-filters">
+                        <select id="filter-tags" multiple>
+                            <option value="">All Tags</option>
+                        </select>
+                        <select id="filter-time">
+                            <option value="">Any Time</option>
+                            <option value="15">Under 15 min</option>
+                            <option value="30">Under 30 min</option>
+                            <option value="60">Under 1 hour</option>
+                            <option value="120">Under 2 hours</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                <!-- Recipe Grid -->
+                <div id="recipe-grid" class="recipe-grid">
+                    <!-- Recipes will be dynamically loaded here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-icon">📝</div>
+                    <h2>No recipes yet</h2>
+                    <p>Start building your recipe collection by adding your first recipe!</p>
+                    <button class="btn btn-primary" onclick="showAddRecipeModal()">
+                        Add Your First Recipe
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Add Recipe Modal -->
+        <div id="add-recipe-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add New Recipe</h2>
+                    <button class="modal-close" onclick="hideAddRecipeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="import-options">
+                        <button id="import-url-btn" class="btn btn-outline">
+                            <span class="icon">🔗</span>
+                            Import from URL
+                        </button>
+                        <button id="manual-entry-btn" class="btn btn-outline">
+                            <span class="icon">✏️</span>
+                            Manual Entry
+                        </button>
+                    </div>
+                    
+                    <!-- URL Import Form -->
+                    <div id="url-import-form" class="form-section hidden">
+                        <div class="form-group">
+                            <label for="recipe-url">Recipe URL</label>
+                            <input type="url" id="recipe-url" placeholder="https://example.com/recipe">
+                            <button id="extract-recipe-btn" class="btn btn-primary">Extract Recipe</button>
+                        </div>
+                        <div id="extraction-status" class="status-message hidden"></div>
+                    </div>
+
+                    <!-- Manual Entry Form -->
+                    <div id="manual-entry-form" class="form-section hidden">
+                        <form id="recipe-form">
+                            <div class="form-group">
+                                <label for="recipe-title">Recipe Title *</label>
+                                <input type="text" id="recipe-title" required>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="cooking-time">Cooking Time (minutes)</label>
+                                    <input type="number" id="cooking-time" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="servings">Servings</label>
+                                    <input type="number" id="servings" min="1">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="recipe-tags">Tags</label>
+                                <input type="text" id="recipe-tags" placeholder="dinner, vegetarian, quick (comma separated)">
+                                <div id="tag-suggestions" class="tag-suggestions"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="recipe-ingredients">Ingredients</label>
+                                <textarea id="recipe-ingredients" rows="6" placeholder="1 cup flour&#10;2 eggs&#10;1/2 cup milk"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="recipe-instructions">Instructions</label>
+                                <textarea id="recipe-instructions" rows="8" placeholder="1. Preheat oven to 350°F&#10;2. Mix dry ingredients..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="recipe-images">Photos</label>
+                                <div class="image-upload-area" id="image-upload-area">
+                                    <input type="file" id="recipe-images" multiple accept="image/*" hidden>
+                                    <div class="upload-placeholder">
+                                        <span class="upload-icon">📷</span>
+                                        <p>Click to add photos or drag and drop</p>
+                                    </div>
+                                    <div id="image-preview" class="image-preview"></div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="hideAddRecipeModal()">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Recipe</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Share Menu Modal -->
+        <div id="share-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Share Your Recipes</h2>
+                    <button class="modal-close" onclick="hideShareModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="share-options">
+                        <div class="share-option">
+                            <h3>📱 For Mobile Sharing</h3>
+                            <p>Share your recipe collection with your partner's phone</p>
+                            <button id="mobile-share-btn" class="btn btn-primary">
+                                Share via Phone
+                            </button>
+                        </div>
+                        
+                        <div class="share-option">
+                            <h3>💾 Export & Import</h3>
+                            <p>Download your recipes and share the file</p>
+                            <div class="share-buttons">
+                                <button id="export-recipes-btn" class="btn btn-secondary">
+                                    Export Recipes
+                                </button>
+                                <button id="import-recipes-btn" class="btn btn-outline">
+                                    Import Recipes
+                                </button>
+                            </div>
+                            <input type="file" id="import-file" accept=".json" hidden>
+                        </div>
+                        
+                        <div class="share-option">
+                            <h3>🔗 Cloud Sharing</h3>
+                            <p>Save to cloud storage and share the link</p>
+                            <div class="cloud-instructions">
+                                <ol>
+                                    <li>Export your recipes (button above)</li>
+                                    <li>Upload the file to Google Drive, Dropbox, or OneDrive</li>
+                                    <li>Share the link with your partner</li>
+                                    <li>They can download and import the file</li>
+                                </ol>
+                            </div>
+                        </div>
+                        
+                        <div class="share-option">
+                            <h3>📋 Quick Copy</h3>
+                            <p>Copy recipe data to clipboard for easy sharing</p>
+                            <button id="copy-recipes-btn" class="btn btn-outline">
+                                Copy to Clipboard
+                            </button>
+                            <div id="copy-status" class="status-message hidden"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recipe Detail Modal -->
+        <div id="recipe-detail-modal" class="modal hidden">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h2 id="detail-title"></h2>
+                    <div class="modal-actions">
+                        <button id="edit-recipe-btn" class="btn btn-outline">Edit</button>
+                        <button class="modal-close" onclick="hideRecipeDetailModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="recipe-detail-content">
+                        <!-- Recipe details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/storage.js"></script>
+    <script src="js/recipe-parser.js"></script>
+    <script src="js/sharing.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+    
+    <!-- PWA Installation Banner -->
+    <div id="install-banner" class="install-banner hidden">
+        <div class="install-content">
+            <span class="install-icon">📱</span>
+            <div class="install-text">
+                <strong>Install Vibe Recipes</strong>
+                <p>Add to your home screen for the best mobile experience!</p>
+            </div>
+            <div class="install-actions">
+                <button id="install-btn" class="btn btn-primary">Install</button>
+                <button id="dismiss-install" class="btn btn-outline">Later</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Worker Registration & PWA Installation -->
+    <script>
+        let deferredPrompt;
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => console.log('SW registered'))
+                    .catch(error => console.log('SW registration failed'));
+            });
+        }
+        
+        // PWA Installation
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            // Show the install banner
+            showInstallBanner();
+        });
+        
+        function showInstallBanner() {
+            const banner = document.getElementById('install-banner');
+            if (banner) {
+                banner.classList.remove('hidden');
+            }
+        }
+        
+        function hideInstallBanner() {
+            const banner = document.getElementById('install-banner');
+            if (banner) {
+                banner.classList.add('hidden');
+            }
+        }
+        
+        // Install button click
+        document.addEventListener('DOMContentLoaded', () => {
+            const installBtn = document.getElementById('install-btn');
+            const dismissBtn = document.getElementById('dismiss-install');
+            
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        // Show the install prompt
+                        deferredPrompt.prompt();
+                        // Wait for the user to respond to the prompt
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log(`User response to the install prompt: ${outcome}`);
+                        // Clear the deferredPrompt variable
+                        deferredPrompt = null;
+                    }
+                    hideInstallBanner();
+                });
+            }
+            
+            if (dismissBtn) {
+                dismissBtn.addEventListener('click', () => {
+                    hideInstallBanner();
+                    // Don't show again for this session
+                    sessionStorage.setItem('installDismissed', 'true');
+                });
+            }
+            
+            // Check if already dismissed this session
+            if (sessionStorage.getItem('installDismissed')) {
+                hideInstallBanner();
+            }
+        });
+        
+        // Handle successful installation
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed');
+            hideInstallBanner();
+        });
+    </script>
+</body>
+</html>

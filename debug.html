@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Recipes - Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .console-output { background: #f8f9fa; padding: 10px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Vibe Recipes - Debug Mode</h1>
+    
+    <div id="debug-results"></div>
+    <div id="console-output" class="console-output"></div>
+    
+    <script>
+        const debugResults = document.getElementById('debug-results');
+        const consoleOutput = document.getElementById('console-output');
+        
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function logToPage(type, ...args) {
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleOutput.textContent += `[${type.toUpperCase()}] ${message}\n`;
+        }
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            logToPage('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            logToPage('error', ...args);
+        };
+        
+        console.warn = (...args) => {
+            originalWarn(...args);
+            logToPage('warn', ...args);
+        };
+        
+        function addTest(name, success, message) {
+            const div = document.createElement('div');
+            div.className = `debug-section ${success ? 'success' : 'error'}`;
+            div.innerHTML = `<h3>${name}</h3><p>${message}</p>`;
+            debugResults.appendChild(div);
+        }
+        
+        function addInfo(name, message) {
+            const div = document.createElement('div');
+            div.className = 'debug-section info';
+            div.innerHTML = `<h3>${name}</h3><p>${message}</p>`;
+            debugResults.appendChild(div);
+        }
+        
+        // Test 1: Basic browser compatibility
+        console.log('Starting debug tests...');
+        
+        addTest('IndexedDB Support', 
+            'indexedDB' in window, 
+            'indexedDB' in window ? 'IndexedDB is supported' : 'IndexedDB is not supported');
+            
+        addTest('Service Worker Support', 
+            'serviceWorker' in navigator, 
+            'serviceWorker' in navigator ? 'Service Workers supported' : 'Service Workers not supported');
+            
+        addTest('File API Support', 
+            'FileReader' in window, 
+            'FileReader' in window ? 'File API supported' : 'File API not supported');
+            
+        addTest('Fetch API Support', 
+            'fetch' in window, 
+            'fetch' in window ? 'Fetch API supported' : 'Fetch API not supported');
+        
+        // Test 2: Try loading each script individually
+        const scripts = [
+            'js/storage.js',
+            'js/recipe-parser.js', 
+            'js/sharing.js',
+            'js/ui.js',
+            'js/app.js'
+        ];
+        
+        let scriptsLoaded = 0;
+        
+        scripts.forEach((scriptPath, index) => {
+            const script = document.createElement('script');
+            script.src = scriptPath;
+            script.onload = () => {
+                console.log(`✅ Loaded: ${scriptPath}`);
+                addTest(`Script: ${scriptPath}`, true, 'Loaded successfully');
+                scriptsLoaded++;
+                
+                if (scriptsLoaded === scripts.length) {
+                    setTimeout(testAppInitialization, 1000);
+                }
+            };
+            script.onerror = (error) => {
+                console.error(`❌ Failed to load: ${scriptPath}`, error);
+                addTest(`Script: ${scriptPath}`, false, `Failed to load: ${error.message || 'Unknown error'}`);
+            };
+            document.head.appendChild(script);
+        });
+        
+        // Test 3: Try app initialization
+        function testAppInitialization() {
+            console.log('Testing app initialization...');
+            
+            try {
+                // Check if global objects exist
+                addTest('RecipeStorage Class', 
+                    typeof window.recipeStorage !== 'undefined', 
+                    typeof window.recipeStorage !== 'undefined' ? 'RecipeStorage instance found' : 'RecipeStorage not found');
+                    
+                addTest('RecipeParser Class', 
+                    typeof window.recipeParser !== 'undefined', 
+                    typeof window.recipeParser !== 'undefined' ? 'RecipeParser instance found' : 'RecipeParser not found');
+                    
+                addTest('RecipeSharing Class', 
+                    typeof window.recipeSharing !== 'undefined', 
+                    typeof window.recipeSharing !== 'undefined' ? 'RecipeSharing instance found' : 'RecipeSharing not found');
+                    
+                addTest('RecipeUI Class', 
+                    typeof window.recipeUI !== 'undefined', 
+                    typeof window.recipeUI !== 'undefined' ? 'RecipeUI instance found' : 'RecipeUI not found');
+                    
+                addTest('App Class', 
+                    typeof window.app !== 'undefined', 
+                    typeof window.app !== 'undefined' ? 'App instance found' : 'App not found');
+                
+                // Try to initialize the app
+                if (window.app && typeof window.app.init === 'function') {
+                    console.log('Attempting to initialize app...');
+                    window.app.init()
+                        .then(() => {
+                            addTest('App Initialization', true, 'App initialized successfully!');
+                            console.log('✅ App initialization complete');
+                        })
+                        .catch((error) => {
+                            addTest('App Initialization', false, `App initialization failed: ${error.message}`);
+                            console.error('❌ App initialization failed:', error);
+                        });
+                } else {
+                    addTest('App Initialization', false, 'App.init method not found');
+                }
+                
+            } catch (error) {
+                addTest('App Testing', false, `Error during testing: ${error.message}`);
+                console.error('❌ Error during app testing:', error);
+            }
+        }
+        
+        // Test 4: DOM ready state
+        addInfo('DOM State', `Document ready state: ${document.readyState}`);
+        addInfo('User Agent', navigator.userAgent);
+        addInfo('Current URL', window.location.href);
+        
+        // Catch any unhandled errors
+        window.addEventListener('error', (e) => {
+            console.error('Global error caught:', e.error);
+            addTest('Global Error Handler', false, `Error: ${e.error.message} at ${e.filename}:${e.lineno}`);
+        });
+        
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Unhandled promise rejection:', e.reason);
+            addTest('Promise Rejection Handler', false, `Promise rejection: ${e.reason}`);
+        });
+        
+    </script>
+</body>
+</html>
